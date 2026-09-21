@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<!--
+=====================================================================
+ PORTAL DE SERVICIOS · SECRETARÍA DE FINANZAS DE HONDURAS (SEFIN)
+ Archivo único: HTML + CSS + JavaScript (sin dependencias, sin build)
+=====================================================================
+
+1. ARQUITECTURA
+   GitHub Pages (hosting estático)
+     └─ index.html (SPA con enrutamiento por query string, History API)
+          ├─ Datos ......... Google Sheets publicado como CSV (fuente única)
+          ├─ Caché ......... localStorage (10 min) para rapidez y tolerancia a fallos
+          ├─ Buscador ...... índice local con tolerancia a errores (ver sección 5)
+          └─ Contacto ...... FormSubmit.co (servicio de correo sin servidor) →
+                             transparencia@sefin.gob.hn
+   No existe servidor propio: Google Sheets hace de base de datos y FormSubmit
+   de "backend" de correo. Agregar servicios = agregar filas al Sheet.
+
+2. CONFIGURACIÓN (bloque CONFIG, más abajo en este archivo)
+   a) En Google Sheets: Archivo > Compartir > Publicar en la web > elegir la
+      hoja > formato CSV > Publicar. Copie el ID del documento (la parte larga
+      de la URL entre /d/ y /edit) y péguelo en CONFIG.SHEET_ID.
+      (Alternativa: pegue el enlace CSV publicado en CONFIG.PUBLISHED_CSV_URL.)
+   b) Si la hoja de servicios no es la primera, indique CONFIG.SHEET_TAB
+      (nombre de la pestaña) o CONFIG.SHEET_GID.
+   c) Mientras SHEET_ID y PUBLISHED_CSV_URL estén vacíos, el portal muestra
+      6 servicios de EJEMPLO con un aviso visible.
+
+3. MODELO DE DATOS (una fila = un servicio; la primera fila son los encabezados)
+   Los encabezados se reconocen sin importar tildes ni mayúsculas.
+   Obligatorio: nombre. Recomendados y sinónimos aceptados:
+   ┌────────────────┬────────────────────────────────────────────────────┐
+   │ id / código    │ identificador estable (se usa en la URL)           │
+   │ nombre         │ "Servicio", "Trámite", "Nombre del servicio"       │
+   │ descripcion    │ resumen corto para el listado                      │
+   │ detalle        │ "Descripción detallada", "Información general"     │
+   │ objetivo       │ finalidad del servicio                             │
+   │ categoria      │ agrupa los servicios en el portal                  │
+   │ institucion    │ "Institución responsable", "Unidad responsable"    │
+   │ estado         │ Disponible / En mantenimiento / Suspendido / ...   │
+   │ palabras clave │ separadas por coma; mejoran el buscador            │
+   │ procedimiento  │ un paso por línea (Alt+Enter en la celda) o "|"    │
+   │ requisitos     │ uno por línea                                      │
+   │ documentos     │ "Documentación requerida", uno por línea           │
+   │ tasas          │ uno por línea; formato "Concepto: L. 100.00"       │
+   │ impuestos      │ ídem                                               │
+   │ derechos       │ ídem                                               │
+   │ pagos          │ "Pagos requeridos"                                 │
+   │ costos         │ "Costos administrativos"                           │
+   │ tiempo         │ "Tiempo estimado", "Plazo"                         │
+   │ observaciones  │ notas importantes, una por línea                   │
+   │ video          │ enlace YouTube / Vimeo / Google Drive / .mp4       │
+   │ enlace         │ (opcional) URL para iniciar el trámite en línea    │
+   │ publicar       │ (opcional) escriba NO para ocultar sin borrar      │
+   │ orden          │ (opcional) número para ordenar el listado          │
+   │ destacado      │ (opcional) SI para mostrarlo en la página inicial  │
+   └────────────────┴────────────────────────────────────────────────────┘
+   También se aceptan columnas numeradas: "Paso 1", "Paso 2"...,
+   "Requisito 1"..., "Documento 1"...
+
+4. DESPLIEGUE EN GITHUB PAGES
+   1) Cree un repositorio y suba este archivo con el nombre index.html.
+   2) Settings > Pages > Source: "Deploy from a branch" > rama main, carpeta /root.
+   3) Espere 1-2 minutos: el sitio queda en https://<usuario>.github.io/<repo>/
+   4) Correo: la PRIMERA vez que alguien envíe el formulario, FormSubmit envía
+      un correo de activación a transparencia@sefin.gob.hn. Debe pulsar
+      "Activate Form". Tras activarlo, FormSubmit entrega un identificador
+      aleatorio; puede reemplazar el correo en CONFIG.FORM_ENDPOINT por ese
+      identificador para no exponer la dirección en el código.
+   5) Dominio propio (opcional): Settings > Pages > Custom domain.
+
+5. BUSCADOR
+   Normaliza tildes y mayúsculas, ignora palabras vacías, reduce plurales,
+   compara fonéticamente (b/v, c/s/z, h muda, ll/y, qu/k), tolera erratas por
+   distancia de edición (Damerau-Levenshtein), pondera campos (nombre 10,
+   palabras clave 7, categoría 4, descripción 3, procedimiento 2...) y ofrece
+   "¿Quiso decir…?" y servicios relacionados.
+
+6. ACCESIBILIDAD (WCAG 2.1 AA)
+   - Contraste verificado: texto normal ≥ 4.5:1; componentes de interfaz ≥ 3:1.
+     El dorado #ad8411 (3.45:1 sobre blanco) solo se usa en elementos
+     gráficos y como fondo con texto #231f20 (4.72:1); el texto dorado sobre
+     fondo claro usa #6f5300 (7.2:1).
+   - Enlace "Saltar al contenido", puntos de referencia (header, nav, main,
+     footer), un solo h1 por vista, jerarquía de encabezados.
+   - Buscador con patrón ARIA combobox/listbox y teclado completo
+     (↑ ↓ Enter Esc). Estados nunca solo por color (texto + forma).
+   - Foco visible, objetivos táctiles ≥ 44 px, respeta prefers-reduced-motion,
+     zoom hasta 200 %, anuncios en regiones aria-live al cambiar de vista.
+   - Formulario con etiquetas, errores asociados (aria-describedby,
+     aria-invalid) y resumen de errores con foco.
+   - Recomendación: los videos deben tener subtítulos (WCAG 1.2.2).
+
+7. SEO
+   URL por servicio (?servicio=<id>), <title>/<meta description>/canonical y
+   Open Graph dinámicos, datos estructurados JSON-LD (GovernmentService).
+   Para un mejor posicionamiento agregue robots.txt y sitemap.xml al
+   repositorio listando las URLs ?servicio=… .
+
+8. SEGURIDAD
+   Todo el contenido del Sheet se escapa antes de mostrarse (anti-XSS); solo
+   se aceptan enlaces http/https; videos solo de hosts conocidos; política CSP
+   restrictiva (si agrega otro proveedor de video, añádalo a frame-src);
+   formulario con destino fijo, campo trampa anti-spam y límite de envíos.
+
+9. MANTENIMIENTO
+   - Nuevo servicio/cambio: editar el Sheet. Los visitantes ven los cambios
+     en máx. 10 minutos (CONFIG.CACHE_MINUTES).
+   - Ocultar servicio: columna "publicar" = NO.
+   - Cambiar colores: variables CSS al inicio de <style> (:root).
+   - Cambiar textos institucionales: bloque CONFIG.
+=====================================================================
+-->
+<html lang="es-HN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal de Servicios | Secretaría de Finanzas de Honduras</title>
+<meta name="description" content="Encuentre trámites y servicios de la Secretaría de Finanzas de Honduras: requisitos, procedimiento, costos, tiempos de respuesta y videos explicativos.">
+<meta name="theme-color" content="#231f20">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://drive.google.com; connect-src https://docs.google.com https://*.googleusercontent.com https://formsubmit.co; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="canonical" id="canonical" href="">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_HN">
+<meta property="og:site_name" content="Portal de Servicios · SEFIN">
+<meta property="og:title" id="og-title" content="Portal de Servicios | Secretaría de Finanzas de Honduras">
+<meta property="og:description" id="og-desc" content="Trámites y servicios de la Secretaría de Finanzas de Honduras con requisitos, costos y videos explicativos.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23231f20'/%3E%3Cpath d='M6 25h20v-4h-4v-4h-4v-4h-4v-4h-4v4h-4z' fill='%23ad8411'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"GovernmentOrganization","name":"Secretaría de Finanzas de Honduras","alternateName":"SEFIN","url":"https://www.sefin.gob.hn","email":"transparencia@sefin.gob.hn","areaServed":"HN"}
+</script>
+<style>
+/* ===== Tokens (paleta institucional accesible) =====
+   Marca:      --gold #ad8411 (principal)   --ink #231f20 (secundario)
+   Derivados:  contrastes calculados contra WCAG 2.1 AA (ver cabecera)      */
+:root{
+  --ink:#231f20; --gold:#ad8411; --gold-bright:#e3bd4c; --gold-deep:#6f5300; --gold-tint:#f7f0d9;
+  --bg:#f4f4f3; --surface:#ffffff; --line:#d9d6d3; --line-strong:#8a8587; --field-border:#6b6668;
+  --text:#231f20; --muted:#5c5759; --on-dark-muted:#c9c4c6;
+  --link:#0b56a3; --link-hover:#073b73; --link-on-dark:#8ec1ff;
+  --ok:#1b6b3a; --ok-bg:#e2f2e7; --ok-line:#8fc3a2;
+  --warn:#6a4700; --warn-bg:#fff2cc; --warn-line:#b07d00;
+  --err:#a3231f; --err-bg:#fdeaea; --err-line:#d99b98;
+  --focus:#231f20;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --radius:4px; --wrap:72rem;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:1rem}
+body{margin:0;font:400 1rem/1.65 var(--sans);color:var(--text);background:var(--bg);min-height:100vh;display:flex;flex-direction:column}
+img,svg,video{max-width:100%}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;margin:0;letter-spacing:-.005em}
+h1{font-size:clamp(1.9rem,1.2rem + 2.8vw,3.2rem);font-weight:700}
+h2{font-size:clamp(1.4rem,1.15rem + 1vw,1.85rem)}
+h3{font-size:1.15rem}
+p{margin:0 0 1rem}
+a{color:var(--link);text-underline-offset:.18em;text-decoration-thickness:.08em}
+a:hover{color:var(--link-hover);text-decoration-thickness:.14em}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:2px}
+.on-dark{--focus:var(--gold-bright);--link:var(--link-on-dark);--link-hover:#fff;color:#fff}
+.sr-only{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.wrap{width:min(100% - 2rem,var(--wrap));margin-inline:auto}
+.skip{position:absolute;left:1rem;top:-4rem;z-index:100;background:var(--gold);color:var(--ink);padding:.75rem 1rem;font-weight:700;border-radius:var(--radius);text-decoration:none}
+.skip:focus{top:1rem}
+main{flex:1}
+main:focus,h1[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
+[hidden]{display:none!important}
+
+/* ===== Encabezado ===== */
+.site-header{background:var(--ink)}
+.gov-strip{border-bottom:1px solid #3a3536;font-size:.8125rem;color:var(--on-dark-muted);padding:.35rem 0}
+.header-main{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem 2rem;padding:1rem 0}
+.brand{display:flex;align-items:center;gap:.9rem;text-decoration:none;color:#fff;min-height:44px}
+.brand:hover{color:#fff}
+.brand__mark{flex:none;width:2.75rem;height:2.75rem;display:grid;place-items:center;background:var(--gold);border-radius:var(--radius)}
+.brand__logo{height:3rem;width:auto;display:block}
+.brand__text{display:flex;flex-direction:column;line-height:1.2}
+.brand__name{font-family:var(--serif);font-weight:700;font-size:1.3rem}
+.brand__org{font-size:.875rem;color:var(--on-dark-muted)}
+.site-nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.25rem}
+.site-nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 .9rem;color:#fff;text-decoration:none;font-weight:500;border-bottom:3px solid transparent}
+.site-nav a:hover{border-bottom-color:var(--gold-bright);color:#fff}
+.site-nav a[aria-current="page"]{border-bottom-color:var(--gold);font-weight:700}
+.demo-banner{background:var(--warn-bg);color:var(--warn);border-bottom:2px solid var(--warn-line);padding:.6rem 0;font-size:.9375rem}
+.demo-banner p{margin:0}
+
+/* ===== Motivo decorativo: greca escalonada ===== */
+.greca{height:16px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='16' viewBox='0 0 48 16'%3E%3Cpath d='M0 15h8V8h8V1h16v7h8v7h8' fill='none' stroke='%23ad8411' stroke-width='2'/%3E%3C/svg%3E") repeat-x left bottom}
+
+/* ===== Hero / cabeceras de página ===== */
+.hero{background:var(--ink);padding:clamp(2.5rem,6vw,5rem) 0 0}
+.hero__inner{width:min(100% - 2rem,52rem);margin-left:max(1rem,calc((100% - var(--wrap))/2));padding-bottom:clamp(2rem,5vw,3.5rem)}
+.hero h1{max-width:20ch;margin-bottom:1rem}
+.hero__lead{font-size:1.125rem;color:var(--on-dark-muted);max-width:60ch;margin-bottom:2rem}
+.hero__freq{margin:1.25rem 0 0;color:var(--on-dark-muted);font-size:.9375rem}
+.hero__freq ul{display:inline;list-style:none;margin:0;padding:0}
+.hero__freq li{display:inline-block;margin:.25rem .5rem .25rem 0}
+.hero__freq a{display:inline-block;padding:.2rem .75rem;border:1px solid #6b6668;border-radius:999px;color:#fff;text-decoration:none}
+.hero__freq a:hover{border-color:var(--gold-bright);background:#332e2f;color:#fff}
+.page-head{background:var(--ink);padding:1.5rem 0 0}
+.page-head__inner{padding-bottom:2rem}
+.page-head h1{margin:.75rem 0 1rem;max-width:26ch}
+.page-head .lead{font-size:1.125rem;color:var(--on-dark-muted);max-width:65ch;margin:0 0 1.25rem}
+.crumbs ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.25rem .5rem;font-size:.9375rem}
+.crumbs li+li::before{content:"/";content:"/" / "";margin-right:.5rem;color:var(--on-dark-muted)}
+.crumbs [aria-current]{color:var(--on-dark-muted)}
+
+/* ===== Buscador ===== */
+.search__label{display:block;font-weight:600;margin-bottom:.5rem}
+.search__row{display:flex;gap:.5rem;align-items:stretch}
+.search__field{position:relative;flex:1;min-width:0}
+.search__input{width:100%;height:3.5rem;padding:0 1rem;font:inherit;font-size:1.125rem;color:var(--ink);background:#fff;border:2px solid #fff;border-radius:var(--radius)}
+.search__input::placeholder{color:var(--muted);opacity:1}
+.search__input:focus{outline:3px solid var(--gold-bright);outline-offset:2px}
+.search__btn{height:3.5rem;padding-inline:1.75rem;font-size:1.0625rem}
+.search__hint{margin:.5rem 0 0;font-size:.875rem;color:var(--on-dark-muted)}
+.search__list{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);margin:0;padding:.25rem 0;list-style:none;background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:var(--radius);max-height:22rem;overflow:auto;box-shadow:0 12px 28px rgba(0,0,0,.35)}
+.search__opt{padding:.65rem 1rem .65rem .9rem;border-left:4px solid transparent;cursor:pointer;display:flex;flex-direction:column;line-height:1.35}
+.search__opt small{color:var(--muted);font-size:.8125rem}
+.search__opt[aria-selected="true"],.search__opt:hover{background:var(--gold-tint);border-left-color:var(--ink)}
+.search__opt--action{font-weight:600;border-top:1px solid var(--line)}
+.search__opt[aria-disabled="true"]{cursor:default;color:var(--muted)}
+.page-head .search__label{color:#fff}
+
+/* ===== Botones ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;padding:.65rem 1.4rem;font:inherit;font-weight:700;text-decoration:none;border:2px solid transparent;border-radius:var(--radius);cursor:pointer;line-height:1.2}
+.btn--primary{background:var(--gold);color:var(--ink);border-color:var(--gold)}
+.btn--primary:hover{background:var(--gold-bright);border-color:var(--gold-bright);color:var(--ink)}
+.btn--dark{background:var(--ink);color:#fff}
+.btn--dark:hover{background:#3a3536;color:#fff}
+.btn--ghost{background:transparent;color:var(--ink);border-color:var(--ink)}
+.btn--ghost:hover{background:var(--ink);color:#fff}
+.btn[disabled]{opacity:.65;cursor:progress}
+
+/* ===== Secciones genéricas ===== */
+.section{padding:clamp(2rem,5vw,3.5rem) 0}
+.section__head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.5rem 1.5rem;margin-bottom:1.5rem}
+.section__head p{margin:0;color:var(--muted)}
+.cats{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(16rem,1fr));gap:1rem}
+.cat{display:flex;flex-direction:column;gap:.15rem;height:100%;padding:1rem 1.25rem;background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--gold);border-radius:var(--radius);text-decoration:none;color:var(--ink)}
+.cat:hover{border-color:var(--ink);border-left-color:var(--ink);background:var(--gold-tint);color:var(--ink)}
+.cat__name{font-family:var(--serif);font-size:1.2rem;font-weight:600;line-height:1.25}
+.cat__count{font-size:.875rem;color:var(--muted)}
+.band{background:var(--gold-tint);border-top:1px solid #e3d59f;border-bottom:1px solid #e3d59f}
+.band__inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem 2rem;padding:1.75rem 0}
+.band h2{font-size:1.4rem;margin-bottom:.25rem}
+.band p{margin:0;color:#3d3739}
+
+/* ===== Listado de servicios ===== */
+.list{list-style:none;margin:0;padding:0;display:grid;gap:.75rem}
+.svc{position:relative}
+.svc article{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.75rem 1.5rem;padding:1.15rem 1.35rem;background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--line-strong);border-radius:var(--radius)}
+.svc:hover article{border-color:var(--ink);border-left-color:var(--gold);background:#fffdf6}
+.svc:focus-within article{border-left-color:var(--gold)}
+.svc__body{flex:1 1 24rem;min-width:0}
+.svc__cat{margin:0 0 .15rem;font-size:.875rem;font-weight:600;color:var(--gold-deep)}
+.svc__title{font-size:1.25rem;margin-bottom:.35rem}
+.svc__title a{color:var(--ink);text-decoration:none}
+.svc__title a::after{content:"";position:absolute;inset:0}
+.svc__title a:hover{text-decoration:underline}
+.svc__title a:focus-visible{outline-offset:6px}
+.svc__desc{margin:0 0 .5rem;color:#3d3739;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.svc__meta{margin:0;font-size:.875rem;color:var(--muted)}
+.svc__side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:.75rem}
+.svc__cta{font-weight:600;font-size:.9375rem;color:var(--link);text-decoration:underline;text-underline-offset:.18em}
+.badge{display:inline-flex;align-items:center;gap:.45rem;padding:.2rem .7rem;border-radius:999px;border:1px solid;font-size:.8125rem;font-weight:600;line-height:1.5;white-space:nowrap}
+.badge::before{content:"";width:.55rem;height:.55rem;background:currentColor;border-radius:50%}
+.badge--ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-line)}
+.badge--warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-line)}
+.badge--warn::before{border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.badge--err{color:var(--err);background:var(--err-bg);border-color:var(--err-line)}
+.badge--err::before{border-radius:0;transform:rotate(45deg) scale(.85)}
+.badge--neutral{color:var(--ink);background:#ecebea;border-color:#b9b5b7}
+.badge--neutral::before{border-radius:1px}
+
+/* ===== Catálogo: filtros y resultados ===== */
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:1rem;align-items:end;margin-top:1.5rem}
+.filters label{display:block;font-size:.9375rem;font-weight:600;margin-bottom:.25rem;color:#fff}
+.select{width:100%;min-height:44px;padding:.5rem .75rem;font:inherit;color:var(--ink);background:#fff;border:2px solid #fff;border-radius:var(--radius)}
+.filters .btn{min-height:44px}
+.results__count{font-weight:600;margin:0 0 1rem}
+.notice{padding:.75rem 1rem;background:var(--gold-tint);border-left:4px solid var(--gold);margin:0 0 1rem;border-radius:0 var(--radius) var(--radius) 0}
+.empty{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.5rem}
+.empty h2{font-size:1.4rem;margin-bottom:.75rem}
+.empty ul{margin:.25rem 0 1rem;padding-left:1.25rem}
+.chips{list-style:none;margin:0 0 1rem;padding:0;display:flex;flex-wrap:wrap;gap:.5rem}
+.chips a{display:inline-block;padding:.35rem .9rem;border:1px solid var(--field-border);border-radius:999px;text-decoration:none;color:var(--ink);background:#fff}
+.chips a:hover{background:var(--gold-tint);border-color:var(--ink);color:var(--ink)}
+.related{margin-top:2.5rem}
+.related h2{font-size:1.4rem;margin-bottom:1rem}
+
+/* ===== Detalle del servicio ===== */
+.facts{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;align-items:center;color:var(--on-dark-muted);font-size:.9375rem}
+.facts strong{color:#fff;font-weight:600}
+.detail{display:grid;gap:2rem;padding:2rem 0 3rem;align-items:start}
+@media (min-width:62rem){.detail{grid-template-columns:minmax(0,1fr) 17rem;gap:2.5rem}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.dsec{padding:1.75rem clamp(1.1rem,3vw,2rem)}
+.dsec+.dsec{border-top:1px solid var(--line)}
+.dsec>h2{margin-bottom:1rem;outline:none}
+.dsec h3{margin:1.25rem 0 .4rem}
+.dl{display:grid;grid-template-columns:max-content 1fr;gap:.35rem 1.25rem;margin:0 0 1.25rem}
+.dl dt{font-weight:600;color:var(--muted)}
+.dl dd{margin:0}
+@media (max-width:34rem){.dl{grid-template-columns:1fr;gap:0}.dl dd{margin-bottom:.6rem}}
+.prose p{max-width:70ch}
+.steps{list-style:none;margin:0;padding:0;counter-reset:step}
+.steps li{position:relative;counter-increment:step;padding:0 0 1.25rem 3.5rem;min-height:2.5rem;max-width:70ch}
+.steps li::before{content:counter(step);position:absolute;left:0;top:0;width:2.35rem;height:2.35rem;display:grid;place-items:center;border-radius:50%;background:var(--gold);color:var(--ink);font-weight:700}
+.steps li:not(:last-child)::after{content:"";position:absolute;left:1.1rem;top:2.5rem;bottom:.15rem;width:2px;background:var(--line)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:.6rem;max-width:70ch}
+.checks li{position:relative;padding-left:2rem}
+.checks li::before{content:"";position:absolute;left:.15rem;top:.45em;width:.9rem;height:.5rem;border-left:3px solid var(--ok);border-bottom:3px solid var(--ok);transform:rotate(-45deg)}
+.costs{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))}
+.cost{border:1px solid var(--line);border-top:4px solid var(--gold);border-radius:var(--radius);padding:.9rem 1.1rem}
+.cost h3{margin:0 0 .5rem;font-size:1.05rem}
+.cost ul{list-style:none;margin:0;padding:0;display:grid;gap:.4rem}
+.cost li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.1rem .75rem}
+.cost__v{font-weight:700;color:var(--ink)}
+.time{font-family:var(--serif);font-size:1.35rem;margin:0;color:var(--ink)}
+.callout{margin:0;padding:1rem 1.25rem;background:var(--warn-bg);color:var(--warn);border-left:5px solid var(--warn-line);border-radius:0 var(--radius) var(--radius) 0}
+.callout strong{display:block;margin-bottom:.35rem}
+.callout ul{margin:0;padding-left:1.25rem}
+.video{position:relative;aspect-ratio:16/9;background:#000;border-radius:var(--radius);overflow:hidden}
+.video iframe,.video video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.note{font-size:.9375rem;color:var(--muted);margin:.75rem 0 0}
+.aside{position:sticky;top:1rem;display:grid;gap:1rem}
+.aside .panel{padding:1.1rem 1.25rem}
+.aside h2{font-size:1.05rem;margin-bottom:.6rem;font-family:var(--sans);font-weight:700}
+.aside ol{list-style:none;margin:0;padding:0;display:grid;gap:.1rem}
+.aside ol a{display:block;padding:.4rem .6rem;border-left:3px solid var(--line);text-decoration:none;color:var(--ink)}
+.aside ol a:hover{border-left-color:var(--gold);background:var(--gold-tint);color:var(--ink)}
+.aside .btn{width:100%}
+@media (max-width:61.99rem){.aside{position:static}.aside .toc{display:none}}
+
+/* ===== Formulario de contacto ===== */
+.contact{background:var(--gold-tint)}
+.contact p.lead{max-width:60ch}
+.form{display:grid;gap:1.1rem;max-width:44rem}
+.form__row{display:grid;gap:1.1rem}
+@media (min-width:40rem){.form__row{grid-template-columns:1fr 1fr}}
+.field label{display:block;font-weight:600;margin-bottom:.3rem}
+.req{color:var(--err)}
+.input{width:100%;min-height:44px;padding:.6rem .8rem;font:inherit;color:var(--ink);background:#fff;border:2px solid var(--field-border);border-radius:var(--radius)}
+textarea.input{min-height:9rem;resize:vertical}
+.input:focus{border-color:var(--ink);outline:3px solid var(--focus);outline-offset:1px}
+.input[aria-invalid="true"]{border-color:var(--err);background:var(--err-bg)}
+.field__err{margin:.35rem 0 0;color:var(--err);font-weight:600;font-size:.9375rem}
+.field__err::before{content:"Error: ";font-weight:700}
+.field__help{display:flex;justify-content:space-between;gap:1rem;margin:.3rem 0 0;font-size:.875rem;color:var(--muted)}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.summary{padding:1rem 1.25rem;border-radius:var(--radius);border:2px solid}
+.summary--err{background:var(--err-bg);border-color:var(--err);color:#5f1512}
+.summary--ok{background:var(--ok-bg);border-color:var(--ok);color:#0f4526}
+.summary--info{background:#fff;border-color:var(--ink);color:var(--ink)}
+.summary p{margin:0 0 .35rem}
+.summary ul{margin:.35rem 0 0;padding-left:1.25rem}
+.summary a{color:inherit;font-weight:600}
+.summary strong:first-child{display:block;font-size:1.05rem;margin-bottom:.25rem}
+
+/* ===== Estados globales ===== */
+.state{padding:clamp(2.5rem,8vw,5rem) 0;text-align:center}
+.state h1{font-size:clamp(1.6rem,1.2rem + 1.5vw,2.2rem);margin-bottom:1rem}
+.state p{max-width:50ch;margin-inline:auto}
+.spinner{width:2.25rem;height:2.25rem;margin:0 auto 1rem;border:4px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== Pie de página ===== */
+.site-footer{background:var(--ink);margin-top:auto}
+.site-footer .greca{margin-bottom:0}
+.footer__inner{display:grid;gap:1.5rem 3rem;padding:2rem 0;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));font-size:.9375rem;color:var(--on-dark-muted)}
+.footer__inner h2{font-family:var(--sans);font-size:1rem;font-weight:700;color:#fff;margin-bottom:.4rem}
+.footer__inner p{margin:0 0 .35rem}
+.footer__legal{border-top:1px solid #3a3536;padding:1rem 0;font-size:.8125rem;color:var(--on-dark-muted)}
+.footer__legal p{margin:0}
+
+@media (max-width:34rem){
+  .site-nav a{padding:0 .6rem}
+  .search__row{flex-direction:column}
+  .search__btn{height:3rem}
+  .svc__side{flex-direction:row;align-items:center;width:100%}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media (forced-colors:active){.btn,.badge,.cat,.svc article{border:2px solid ButtonText}.steps li::before{border:2px solid ButtonText}}
+@media print{
+  body{background:#fff;color:#000;font-size:11pt}
+  .site-header,.site-footer,.aside,.contact,.related,.skip,.demo-banner,.crumbs,.video,.note,.no-print{display:none!important}
+  .page-head{background:#fff;color:#000;padding:0}.page-head h1,.page-head .lead,.facts,.facts strong{color:#000}
+  .detail{display:block;padding:0}.panel{border:0}.dsec{padding:1rem 0;break-inside:avoid}
+  a{color:#000;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main" data-scroll>Saltar al contenido principal</a>
+<header class="site-header on-dark">
+  <div id="demo-banner" class="demo-banner" role="note" hidden>
+    <div class="wrap"><p><strong>Modo demostración.</strong> Los servicios mostrados son ejemplos. Para conectar el Google Sheet oficial, complete <code>SHEET_ID</code> en el bloque <code>CONFIG</code> de index.html.</p></div>
+  </div>
+  <div class="gov-strip"><div class="wrap">Gobierno de la República de Honduras</div></div>
+  <div class="wrap header-main">
+    <a class="brand" href="./" data-link id="brand-link">
+      <span class="brand__mark" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 26 26" focusable="false"><path d="M2 22h22v-4h-4v-4h-4V10h-4V6h-4v4H8v4H4v4H2z" fill="#231f20"/></svg>
+      </span>
+      <span class="brand__text"><span class="brand__name" id="brand-name">Portal de Servicios</span><span class="brand__org" id="brand-org">Secretaría de Finanzas de Honduras</span></span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <ul>
+        <li><a href="./" data-link data-nav="home">Inicio</a></li>
+        <li><a href="?catalogo=1" data-link data-nav="catalog">Todos los servicios</a></li>
+        <li><a href="mailto:transparencia@sefin.gob.hn" id="nav-contact">Contacto</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main" tabindex="-1"><div id="view"></div></main>
+<div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+
+<footer class="site-footer on-dark">
+  <div class="greca" aria-hidden="true"></div>
+  <div class="wrap footer__inner">
+    <div>
+      <h2 id="foot-org">Secretaría de Finanzas de Honduras</h2>
+      <p>Portal de información de trámites y servicios al ciudadano.</p>
+      <p><a href="https://www.sefin.gob.hn" id="foot-site" target="_blank" rel="noopener noreferrer">Sitio institucional de la SEFIN<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+    </div>
+    <div>
+      <h2>Consultas y transparencia</h2>
+      <p>Escriba a <a href="mailto:transparencia@sefin.gob.hn" id="foot-mail">transparencia@sefin.gob.hn</a></p>
+      <p>Este portal cumple criterios de accesibilidad WCAG 2.1 nivel AA.</p>
+    </div>
+  </div>
+  <div class="footer__legal"><div class="wrap"><p>© <span id="year"></span> Secretaría de Finanzas de Honduras. Todos los derechos reservados.</p></div></div>
+</footer>
+
+<noscript>
+  <div class="wrap" style="padding:2rem 0"><p><strong>Este portal necesita JavaScript.</strong> Actívelo en su navegador o escriba a <a href="mailto:transparencia@sefin.gob.hn">transparencia@sefin.gob.hn</a>.</p></div>
+</noscript>
+
+<script>
+(() => {
+'use strict';
+
+/* =====================================================================
+   CONFIG · Único bloque que necesita editar para poner el portal en línea
+   ===================================================================== */
+const CONFIG = {
+  SITE_NAME: 'Portal de Servicios',
+  ORG_NAME: 'Secretaría de Finanzas de Honduras',
+  ORG_SHORT: 'SEFIN',
+  ORG_URL: 'https://www.sefin.gob.hn',
+  LOGO_URL: 'https://www.sefin.gob.hn/wp-content/uploads/2026/03/Logotipo-SEFIN-Horizontal-Blanco-200x72.webp',                 // Opcional: URL (https) del logo oficial. Vacío = emblema por defecto.
+
+  // ---- Origen de datos (Google Sheets) ----
+  SHEET_ID: '1Yys2ph75CfuV48SvC8LG59Ud9lMN4z6LbzcOCUVbkBA',                 // ID del documento de Google Sheets (vacío = modo demostración)
+  SHEET_TAB: '',                // Nombre de la pestaña (opcional)
+  SHEET_GID: '',                // gid de la pestaña (opcional, alternativa a SHEET_TAB)
+  PUBLISHED_CSV_URL: '',        // Alternativa: enlace CSV de "Publicar en la web"
+  CACHE_MINUTES: 10,
+
+  // ---- Contacto ----
+  CONTACT_TO: 'transparencia@sefin.gob.hn',   // Destino ÚNICO y fijo de las consultas
+  FORM_ENDPOINT: 'https://formsubmit.co/ajax/transparencia@sefin.gob.hn',
+
+  // ---- Interfaz ----
+  FREQUENT_SEARCHES: [],        // Opcional: ej. ['proveedores','constancia']; vacío = se calculan solas
+  MAX_SUGGESTIONS: 6,
+  FEATURED_COUNT: 6
+};
+
+/* =====================================================================
+   DATOS DE EJEMPLO (solo se usan si no hay SHEET_ID configurado)
+   ===================================================================== */
+const EJ = 'Servicio de demostración: reemplace este contenido con los datos de su Google Sheet.';
+const DEMO_VIDEO = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ';
+const DEMO = [
+ { id:'demo-proveedores', nombre:'Registro en el Sistema de Proveedores del Estado',
+   descripcion:'Inscripción de personas naturales y jurídicas para participar en procesos de contratación pública.',
+   detalle:'Permite que empresas y personas naturales queden habilitadas como proveedores del Estado y puedan presentar ofertas.\nEl registro se mantiene vigente mientras la documentación esté actualizada.',
+   objetivo:'Contar con un registro único y confiable de proveedores para las compras públicas.',
+   categoria:'Contratación pública', institucion:'Oficina Normativa de Contratación y Adquisiciones del Estado',
+   estado:'Disponible', 'palabras clave':'proveedor, proveedores, inscripción, contratista, compras públicas, licitación, registro',
+   procedimiento:'Ingrese al sistema en línea y cree su usuario.\nComplete el formulario de datos generales.\nAdjunte los documentos requeridos en formato PDF.\nPague la tasa de inscripción.\nRecibirá la constancia de inscripción por correo electrónico.',
+   requisitos:'Ser persona natural o jurídica legalmente constituida.\nTener Registro Tributario Nacional (RTN) vigente.\nContar con correo electrónico activo.',
+   documentos:'Copia del RTN.\nCopia de identidad del representante legal.\nEscritura de constitución (personas jurídicas).\nSolvencia fiscal vigente.',
+   tasas:'Inscripción inicial: L. 0.00 (dato de ejemplo)\nRenovación anual: L. 0.00 (dato de ejemplo)', impuestos:'', derechos:'', pagos:'Pago en banco autorizado con el recibo generado por el sistema.',
+   costos:'Sin costos administrativos adicionales.', tiempo:'5 días hábiles después de completar la solicitud.',
+   observaciones:'La información debe mantenerse actualizada.\n'+EJ, video:DEMO_VIDEO, destacado:'SI', orden:'1' },
+ { id:'demo-pagos', nombre:'Consulta de pagos a proveedores',
+   descripcion:'Consulte el estado de las órdenes de pago emitidas a favor de proveedores y contratistas del Estado.',
+   detalle:'Muestra si una orden de pago fue recibida, aprobada, pagada o si tiene observaciones pendientes.',
+   objetivo:'Brindar transparencia sobre el estado de los pagos del Gobierno.', categoria:'Tesorería y pagos',
+   institucion:'Tesorería General de la República', estado:'Disponible',
+   'palabras clave':'pago, pagos, proveedores, orden de pago, factura, tesorería, consulta',
+   procedimiento:'Ingrese a la sección de consulta de pagos.\nEscriba su RTN o el número de orden de pago.\nRevise el estado y la fecha estimada de pago.\nSi hay observaciones, comuníquese con la institución que contrató.',
+   requisitos:'Contar con el RTN o el número de orden de pago.', documentos:'', tasas:'Este servicio es gratuito.', impuestos:'', derechos:'', pagos:'', costos:'',
+   tiempo:'Consulta inmediata.', observaciones:'Los pagos pueden demorar si la documentación tiene errores.\n'+EJ, video:'', destacado:'SI', orden:'2' },
+ { id:'demo-informacion-publica', nombre:'Solicitud de información pública',
+   descripcion:'Solicite documentos e información en poder de la Secretaría de Finanzas según la Ley de Transparencia.',
+   detalle:'Cualquier persona puede pedir información pública sin necesidad de justificar el motivo.',
+   objetivo:'Garantizar el derecho de acceso a la información pública.', categoria:'Transparencia',
+   institucion:'Unidad de Transparencia', estado:'Disponible',
+   'palabras clave':'transparencia, información, solicitud, acceso, ley, documentos, denuncia',
+   procedimiento:'Complete el formulario de solicitud o escriba al correo de transparencia.\nIndique con claridad qué información necesita.\nRecibirá un número de seguimiento.\nLa unidad responderá dentro del plazo establecido.',
+   requisitos:'Identificar a la persona solicitante.\nDescribir la información requerida.', documentos:'Copia de identidad (si la solicitud es presencial).',
+   tasas:'Envío por correo electrónico: L. 0.00 (dato de ejemplo)', impuestos:'', derechos:'', pagos:'', costos:'Reproducción en papel: según tarifa vigente (dato de ejemplo).',
+   tiempo:'10 días hábiles (dato de ejemplo).', observaciones:'Puede haber información reservada según la ley.\n'+EJ, video:'https://youtu.be/aqz-KE-bpKQ', destacado:'SI', orden:'3' },
+ { id:'demo-siafi', nombre:'Solicitud de acceso al SIAFI para instituciones',
+   descripcion:'Habilitación de usuarios institucionales en el Sistema de Administración Financiera.',
+   detalle:'Las instituciones del sector público solicitan claves y perfiles para registrar su ejecución presupuestaria.',
+   objetivo:'Controlar y ordenar el acceso a la información financiera del Estado.', categoria:'Sistemas financieros',
+   institucion:'Dirección General de Contabilidad Gubernamental', estado:'En mantenimiento',
+   'palabras clave':'siafi, usuario, clave, acceso, contabilidad, sistema, perfil, credenciales',
+   procedimiento:'La máxima autoridad de la institución envía la solicitud oficial.\nIndique los nombres y perfiles de los usuarios.\nLa Dirección valida la solicitud.\nSe entregan las credenciales al responsable designado.',
+   requisitos:'Ser institución del sector público.\nDesignar un responsable de usuarios.', documentos:'Oficio firmado por la máxima autoridad.\nListado de usuarios y perfiles.',
+   tasas:'', impuestos:'', derechos:'', pagos:'', costos:'Sin costo.', tiempo:'3 a 5 días hábiles (dato de ejemplo).',
+   observaciones:'El servicio está temporalmente en mantenimiento; consulte por correo.\n'+EJ, video:'', orden:'4' },
+ { id:'demo-disponibilidad', nombre:'Certificación de disponibilidad presupuestaria',
+   descripcion:'Constancia de que una institución cuenta con fondos presupuestados para una compra o contrato.',
+   detalle:'Documento previo a muchos procesos de compra que confirma la existencia de recursos.',
+   objetivo:'Asegurar que los compromisos de gasto tengan respaldo presupuestario.', categoria:'Presupuesto',
+   institucion:'Dirección General de Presupuesto', estado:'Disponible',
+   'palabras clave':'presupuesto, certificación, disponibilidad, fondos, gasto, compromiso, constancia',
+   procedimiento:'La unidad solicitante registra la necesidad de gasto.\nSe genera la solicitud en el sistema.\nPresupuesto revisa la programación.\nSe emite la certificación firmada.',
+   requisitos:'Contar con partida presupuestaria asignada.\nTener el gasto programado en el plan operativo.', documentos:'Solicitud firmada.\nEspecificaciones del gasto.',
+   tasas:'', impuestos:'', derechos:'', pagos:'', costos:'Sin costo.', tiempo:'2 días hábiles (dato de ejemplo).', observaciones:EJ, video:'', orden:'5' },
+ { id:'demo-inversion', nombre:'Registro de proyectos de inversión pública',
+   descripcion:'Inscripción de proyectos de inversión en el banco de proyectos para poder recibir financiamiento.',
+   detalle:'Los proyectos se evalúan técnicamente antes de ser incluidos en el presupuesto de inversión.',
+   objetivo:'Priorizar y ordenar la inversión pública.', categoria:'Inversión pública',
+   institucion:'Dirección General de Inversiones Públicas', estado:'Suspendido',
+   'palabras clave':'proyecto, inversión, banco de proyectos, financiamiento, obra, evaluación',
+   procedimiento:'Prepare la ficha del proyecto.\nRegístrela en el sistema.\nEspere la evaluación técnica.\nRecibirá el dictamen y el código del proyecto.',
+   requisitos:'Ser institución del sector público.\nContar con estudio de prefactibilidad.', documentos:'Ficha del proyecto.\nEstudio de prefactibilidad.\nPresupuesto detallado.',
+   tasas:'', impuestos:'', derechos:'', pagos:'', costos:'Sin costo.', tiempo:'15 días hábiles (dato de ejemplo).',
+   observaciones:'Recepción suspendida temporalmente.\n'+EJ, video:'', orden:'6' }
+];
+
+/* =====================================================================
+   UTILIDADES
+   ===================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = v => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const slugify = v => norm(v).replace(/\s+/g, '-').slice(0, 80) || 'servicio';
+const safeUrl = (u, allowRelative = false) => { const t = String(u ?? '').trim(); if (!t) return ''; try { const x = allowRelative ? new URL(t, location.href) : new URL(t); return /^https?:$/.test(x.protocol) ? x.href : ''; } catch { return ''; } };
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const collator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
+
+/* =====================================================================
+   LECTURA DEL GOOGLE SHEET (CSV) Y NORMALIZACIÓN
+   ===================================================================== */
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; }
+      else f += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+
+const ALIASES = {
+  id: ['id', 'codigo', 'cod', 'identificador'],
+  nombre: ['nombre', 'nombre del servicio', 'nombre servicio', 'servicio', 'tramite', 'nombre del tramite', 'titulo'],
+  descripcion: ['descripcion', 'descripcion corta', 'descripcion breve', 'resumen'],
+  detalle: ['descripcion detallada', 'descripcion completa', 'detalle', 'informacion general'],
+  objetivo: ['objetivo', 'finalidad', 'proposito'],
+  categoria: ['categoria', 'categoria del servicio', 'tipo de servicio'],
+  institucion: ['institucion', 'institucion responsable', 'unidad responsable', 'area responsable', 'responsable', 'dependencia', 'unidad', 'direccion'],
+  estado: ['estado', 'estado del servicio', 'estatus', 'disponibilidad'],
+  palabras: ['palabras clave', 'palabras', 'keywords', 'etiquetas', 'tags', 'sinonimos'],
+  procedimiento: ['procedimiento', 'procedimiento paso a paso', 'pasos', 'proceso'],
+  requisitos: ['requisitos', 'requisito'],
+  documentos: ['documentos', 'documentacion', 'documentacion requerida', 'documentos requeridos', 'documentos necesarios'],
+  tasas: ['tasas', 'tasa'],
+  impuestos: ['impuestos', 'impuesto'],
+  derechos: ['derechos', 'derecho'],
+  pagos: ['pagos requeridos', 'pagos', 'pago requerido', 'pago'],
+  costos: ['costos administrativos', 'costo administrativo', 'costos', 'costo'],
+  tiempo: ['tiempo estimado', 'tiempo de respuesta', 'tiempo de entrega', 'tiempo', 'plazo', 'duracion'],
+  observaciones: ['observaciones', 'observacion', 'notas importantes', 'notas', 'nota'],
+  video: ['video explicativo', 'enlace del video explicativo', 'enlace al video', 'enlace del video', 'enlace video', 'url del video', 'url video', 'link video', 'video'],
+  enlace: ['enlace del tramite', 'enlace tramite', 'url tramite', 'enlace', 'sitio'],
+  publicar: ['publicar', 'publicado', 'visible'],
+  orden: ['orden', 'prioridad', 'posicion'],
+  destacado: ['destacado', 'destacar']
+};
+const ALIAS_LIST = Object.entries(ALIASES).flatMap(([f, arr]) => arr.map(a => [a, f])).sort((a, b) => b[0].length - a[0].length);
+const EXACT_ONLY = new Set(['id', 'cod', 'codigo', 'servicio', 'tramite', 'titulo', 'responsable', 'dependencia', 'unidad', 'direccion', 'proceso', 'sitio', 'pago', 'costo', 'tasa', 'derecho', 'impuesto', 'nota', 'plazo', 'orden', 'estado', 'nombre', 'detalle', 'resumen']);
+const PARTIAL_LIST = ALIAS_LIST.filter(([a]) => !EXACT_ONLY.has(a));
+const NUMBERED = { paso: 'procedimiento', requisito: 'requisitos', documento: 'documentos' };
+
+function fieldForHeader(h) {
+  const n = norm(h); if (!n) return null;
+  const nm = /^(paso|requisito|documento)s? ?\d+$/.exec(n);
+  if (nm) return NUMBERED[nm[1]];
+  const exact = ALIAS_LIST.find(([a]) => a === n); if (exact) return exact[1];
+  const part = PARTIAL_LIST.find(([a]) => ` ${n} `.includes(` ${a} `)); return part ? part[1] : null;
+}
+
+function parseList(text) {
+  let t = String(text ?? '').trim(); if (!t) return [];
+  if (/(?:^|\s)\d+[.)]\s/.test(t) && (t.match(/(?:^|\s)\d+[.)]\s/g) || []).length > 1) t = t.replace(/(?:^|\s)(?=\d+[.)]\s)/g, '\n');
+  return t.split(/\r?\n|\|/).map(x => x.replace(/^[\s\-•·*]+/, '').replace(/^\(?\d+[.)\-]\s+/, '').trim()).filter(Boolean);
+}
+const parseParas = text => String(text ?? '').split(/\r?\n+/).map(x => x.trim()).filter(Boolean);
+const parseKeywords = text => String(text ?? '').split(/[,;|\n]/).map(x => x.trim()).filter(Boolean);
+
+function rowsToServices(rows) {
+  let hi = -1, map = null;
+  for (let i = 0; i < Math.min(rows.length, 6); i++) {
+    const m = rows[i].map(fieldForHeader);
+    if (m.filter(Boolean).length >= 2 && m.includes('nombre')) { hi = i; map = m; break; }
+  }
+  if (hi < 0) throw new Error('No se reconocieron las columnas del Sheet (falta la columna "nombre").');
+  const seen = new Set(); const out = [];
+  rows.slice(hi + 1).forEach((r, idx) => {
+    const rec = {};
+    map.forEach((f, c) => { if (f && r[c] != null && String(r[c]).trim() !== '') (rec[f] ||= []).push(String(r[c])); });
+    const one = f => (rec[f] || [])[0]?.trim() || '';
+    const many = f => (rec[f] || []).flatMap(parseList);
+    const nombre = one('nombre'); if (!nombre) return;
+    if (/^(no|n|0|false|falso|oculto|inactivo)$/.test(norm(one('publicar')))) return;
+    let base = slugify(one('id') || nombre), slug = base, k = 2;
+    while (seen.has(slug)) slug = `${base}-${k++}`; seen.add(slug);
+    const detalle = (rec.detalle || []).join('\n').trim();
+    const descripcion = one('descripcion') || (detalle ? detalle.split(/\r?\n/)[0].slice(0, 220) : '');
+    out.push({
+      _idx: idx, slug, nombre, descripcion,
+      detalle: detalle || (rec.descripcion || []).join('\n'),
+      objetivo: (rec.objetivo || []).join('\n').trim(),
+      categoria: one('categoria') || 'General',
+      institucion: one('institucion') || CONFIG.ORG_NAME,
+      estado: one('estado') || 'Disponible',
+      palabras: (rec.palabras || []).flatMap(parseKeywords),
+      procedimiento: many('procedimiento'), requisitos: many('requisitos'), documentos: many('documentos'),
+      costos: { Tasas: many('tasas'), Impuestos: many('impuestos'), Derechos: many('derechos'), 'Pagos requeridos': many('pagos'), 'Costos administrativos': many('costos') },
+      tiempo: (rec.tiempo || []).join('\n').trim(),
+      observaciones: many('observaciones'),
+      video: one('video'), enlace: one('enlace'),
+      orden: parseFloat(one('orden')) || null,
+      destacado: /^(si|s|1|true|verdadero|x)$/.test(norm(one('destacado')))
+    });
+  });
+  if (!out.length) throw new Error('El Sheet no contiene servicios publicados.');
+  return out;
+}
+
+function demoServices() {
+  const headers = [...new Set(DEMO.flatMap(Object.keys))];
+  return rowsToServices([headers, ...DEMO.map(o => headers.map(h => o[h] || ''))]);
+}
+
+function sheetUrl() {
+  if (CONFIG.PUBLISHED_CSV_URL) return safeUrl(CONFIG.PUBLISHED_CSV_URL);
+  if (!CONFIG.SHEET_ID) return '';
+  const id = encodeURIComponent(CONFIG.SHEET_ID);
+  let u = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`;
+  if (CONFIG.SHEET_TAB) u += `&sheet=${encodeURIComponent(CONFIG.SHEET_TAB)}`;
+  else if (CONFIG.SHEET_GID) u += `&gid=${encodeURIComponent(CONFIG.SHEET_GID)}`;
+  return u;
+}
+
+const CACHE_KEY = 'sefin-portal-servicios-v1';
+function readCache(url) { try { const c = JSON.parse(localStorage.getItem(CACHE_KEY)); return c && c.url === url ? c : null; } catch { return null; } }
+function writeCache(url, services) { try { localStorage.setItem(CACHE_KEY, JSON.stringify({ url, t: Date.now(), services })); } catch { /* almacenamiento no disponible */ } }
+
+async function loadServices() {
+  const url = sheetUrl();
+  if (!url) { state.demo = true; return demoServices(); }
+  const cached = readCache(url);
+  if (cached && Date.now() - cached.t < CONFIG.CACHE_MINUTES * 60000) return cached.services;
+  try {
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 20000);
+    const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal }); clearTimeout(to);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    if (/^\s*</.test(text)) throw new Error('El Sheet no es público o el enlace es incorrecto.');
+    const services = rowsToServices(parseCSV(text));
+    writeCache(url, services);
+    return services;
+  } catch (err) {
+    if (cached) return cached.services;
+    throw err;
+  }
+}
+
+/* =====================================================================
+   BUSCADOR INTELIGENTE
+   ===================================================================== */
+const STOP = new Set('de la el los las un una unos unas y o u e en para por con del al a que se mi su sus lo le les como es son ser sobre entre'.split(' '));
+const stem = w => (w.length > 4 && /[dlnrz]es$/.test(w)) ? w.slice(0, -2) : (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) ? w.slice(0, -1) : w;
+const phon = w => w.replace(/h/g, '').replace(/ll/g, 'y').replace(/qu/g, 'k').replace(/c(?=[ei])/g, 's').replace(/z/g, 's').replace(/c/g, 'k').replace(/[vw]/g, 'b').replace(/(.)\1+/g, '$1');
+function tokens(text) {
+  const out = [], seen = new Set();
+  for (const w of norm(text).split(' ')) {
+    if (!w || STOP.has(w) || (w.length < 2 && !/\d/.test(w))) continue;
+    const s = stem(w); if (seen.has(s)) continue; seen.add(s);
+    out.push({ s, p: phon(s) });
+  }
+  return out;
+}
+function osa(a, b) {
+  const al = a.length, bl = b.length; if (!al) return bl; if (!bl) return al;
+  const d = Array.from({ length: al + 1 }, (_, i) => { const r = new Array(bl + 1).fill(0); r[0] = i; return r; });
+  for (let j = 0; j <= bl; j++) d[0][j] = j;
+  for (let i = 1; i <= al; i++) for (let j = 1; j <= bl; j++) {
+    const c = a[i - 1] === b[j - 1] ? 0 : 1;
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[al][bl];
+}
+const maxDist = len => len <= 3 ? 0 : len <= 7 ? 1 : 2;
+function tokenMatch(q, fts) {
+  let best = 0;
+  for (const t of fts) {
+    let s = 0;
+    if (t.s === q.s) s = 1;
+    else if (q.s.length >= 2 && t.s.startsWith(q.s)) s = .85;
+    else if (t.p === q.p) s = .8;
+    else if (q.p.length >= 2 && t.p.startsWith(q.p)) s = .7;
+    else if (q.s.length >= 4 && t.s.includes(q.s)) s = .5;
+    else {
+      const md = maxDist(q.s.length);
+      if (md && Math.abs(t.s.length - q.s.length) <= md) { const dd = osa(q.s, t.s); if (dd <= md) s = .6 - .12 * dd; }
+    }
+    if (s > best) { best = s; if (s === 1) break; }
+  }
+  return best;
+}
+const FIELDS = [['nombre', 10], ['palabras', 7], ['categoria', 4], ['descripcion', 3], ['objetivo', 2], ['procedimiento', 2], ['institucion', 1.5], ['requisitos', 1.5], ['documentos', 1.5], ['detalle', 1], ['costos', 1], ['observaciones', .5]];
+const allCosts = s => Object.values(s.costos).flat();
+let vocab = new Map(), vocabStems = new Set();
+
+function buildIndex(services) {
+  vocab = new Map(); vocabStems = new Set();
+  for (const s of services) {
+    const f = { nombre: s.nombre, palabras: s.palabras.join(' '), categoria: s.categoria, descripcion: s.descripcion, objetivo: s.objetivo,
+      procedimiento: s.procedimiento.join(' '), institucion: s.institucion, requisitos: s.requisitos.join(' '), documentos: s.documentos.join(' '),
+      detalle: s.detalle, costos: allCosts(s).join(' '), observaciones: s.observaciones.join(' ') };
+    s._ix = FIELDS.map(([k, w]) => ({ w, t: tokens(f[k]) }));
+    s._name = norm(s.nombre);
+    for (const w of `${s.nombre} ${s.palabras.join(' ')} ${s.categoria}`.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+      const n = norm(w); if (n.length >= 4 && !STOP.has(n)) { vocab.set(n, w); vocabStems.add(stem(n)); }
+    }
+  }
+}
+
+function search(q, pool, relaxed = false) {
+  const qt = tokens(q), n = qt.length; if (!n) return [];
+  const need = relaxed ? 1 : n <= 2 ? n : Math.ceil(n * .6);
+  const nq = norm(q), out = [];
+  for (const s of pool) {
+    let score = 0, matched = 0;
+    for (const t of qt) {
+      let ts = 0;
+      for (const f of s._ix) { if (!f.t.length) continue; const m = tokenMatch(t, f.t); if (m) ts += m * f.w; }
+      if (ts > 0) { matched++; score += ts; }
+    }
+    if (matched < need) continue;
+    if (s._name === nq) score += 40; else if (s._name.startsWith(nq)) score += 25; else if (s._name.includes(nq)) score += 15;
+    score += (matched / n) * 10;
+    out.push({ s, score, matched });
+  }
+  return out.sort((a, b) => b.matched - a.matched || b.score - a.score || collator.compare(a.s.nombre, b.s.nombre));
+}
+
+function didYouMean(q) {
+  const words = norm(q).split(' ').filter(w => w && !STOP.has(w)); let changed = false;
+  const fixed = words.map(w => {
+    if (w.length < 4 || vocab.has(w) || vocabStems.has(stem(w))) return w;
+    let best = null, bd = 99; const md = w.length <= 5 ? 1 : 2, pw = phon(w);
+    for (const [v, disp] of vocab) {
+      if (Math.abs(v.length - w.length) > md) continue;
+      const d = phon(v) === pw ? 0 : osa(w, v);
+      if (d <= md && d < bd) { bd = d; best = disp; }
+    }
+    if (best) { changed = true; return best; } return w;
+  });
+  return changed ? fixed.join(' ') : '';
+}
+
+function relatedTo(s, limit = 3, exclude = new Set()) {
+  const kw = new Set(s.palabras.map(norm));
+  return state.services.filter(o => o !== s && !exclude.has(o)).map(o => ({ o, sc: (o.categoria === s.categoria ? 3 : 0) + o.palabras.filter(k => kw.has(norm(k))).length }))
+    .filter(x => x.sc > 0).sort((a, b) => b.sc - a.sc || collator.compare(a.o.nombre, b.o.nombre)).slice(0, limit).map(x => x.o);
+}
+
+/* =====================================================================
+   ESTADO, RUTAS Y METADATOS
+   ===================================================================== */
+const state = { services: [], bySlug: new Map(), categories: [], estados: [], demo: false, ready: false, error: null };
+const view = $('#view');
+const svcHref = s => `?servicio=${encodeURIComponent(s.slug)}`;
+const catalogHref = (o = {}) => { const p = new URLSearchParams({ catalogo: '1' }); for (const [k, v] of Object.entries(o)) if (v) p.set(k, v); return '?' + p.toString(); };
+
+function getParams() {
+  let sp = new URLSearchParams(location.search);
+  if (![...sp.keys()].length && location.hash.startsWith('#?')) sp = new URLSearchParams(location.hash.slice(2));
+  return sp;
+}
+function navigate(href, opts = {}) {
+  const u = new URL(href, location.href);
+  try { history[opts.replace ? 'replaceState' : 'pushState']({}, '', u.pathname + u.search + u.hash); }
+  catch { if (opts.replace) return; location.hash = '#' + u.search; return; }
+  if (!opts.silent) route();
+}
+function setMeta(title, desc, { ld = null, noSuffix = false } = {}) {
+  document.title = noSuffix ? title : `${title} | ${CONFIG.SITE_NAME} ${CONFIG.ORG_SHORT}`;
+  const d = desc || 'Trámites y servicios de la Secretaría de Finanzas de Honduras con requisitos, costos y videos explicativos.';
+  $('meta[name="description"]').setAttribute('content', d.slice(0, 300));
+  $('#og-title').setAttribute('content', document.title); $('#og-desc').setAttribute('content', d.slice(0, 300));
+  if (/^https?:$/.test(location.protocol)) $('#canonical').setAttribute('href', location.origin + location.pathname + (getParams().get('servicio') ? '?servicio=' + encodeURIComponent(getParams().get('servicio')) : ''));
+  let el = $('#ld-service'); if (el) el.remove();
+  if (ld) { el = document.createElement('script'); el.type = 'application/ld+json'; el.id = 'ld-service'; el.textContent = JSON.stringify(ld).replace(/</g, '\\u003c'); document.head.appendChild(el); }
+}
+function setNav(key) { $$('.site-nav a[data-nav]').forEach(a => a.dataset.nav === key ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')); }
+
+async function route(opts = {}) {
+  const p = getParams();
+  if (state.error) return viewError();
+  if (!state.ready) return viewLoading();
+  if (p.get('servicio')) viewService(p.get('servicio'));
+  else if (['catalogo', 'q', 'categoria', 'estado', 'orden'].some(k => p.has(k))) viewCatalog(p);
+  else viewHome();
+  if (!opts.initial) {
+    window.scrollTo(0, 0);
+    const h = $('h1', view); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+    $('#announcer').textContent = document.title;
+  }
+}
+
+/* =====================================================================
+   COMPONENTES
+   ===================================================================== */
+function badge(estado) {
+  const n = norm(estado);
+  const cls = /suspend|inactiv|no disponible|cerrad|fuera de servicio|descontinu/.test(n) ? 'err'
+    : /manten|proxim|parcial|limitad|temporal|pendiente|en proceso/.test(n) ? 'warn'
+    : /activ|dispon|en linea|vigente|habilitad|operativ/.test(n) ? 'ok' : 'neutral';
+  return `<span class="badge badge--${cls}"><span class="sr-only">Estado: </span>${esc(estado)}</span>`;
+}
+function svcRow(s) {
+  return `<li class="svc"><article aria-labelledby="t${s._idx}">
+    <div class="svc__body">
+      <p class="svc__cat">${esc(s.categoria)}</p>
+      <h3 class="svc__title" id="t${s._idx}"><a href="${svcHref(s)}" data-link>${esc(s.nombre)}</a></h3>
+      <p class="svc__desc">${esc(s.descripcion)}</p>
+      <p class="svc__meta">${esc(s.institucion)}</p>
+    </div>
+    <div class="svc__side">${badge(s.estado)}<span class="svc__cta" aria-hidden="true">Ver detalle</span></div>
+  </article></li>`;
+}
+const svcList = arr => `<ul class="list">${arr.map(svcRow).join('')}</ul>`;
+const catCount = c => state.services.filter(s => s.categoria === c).length;
+const catTiles = () => `<ul class="cats">${state.categories.map(c => `<li><a class="cat" href="${catalogHref({ categoria: c })}" data-link><span class="cat__name">${esc(c)}</span><span class="cat__count">${plural(catCount(c), 'servicio', 'servicios')}</span></a></li>`).join('')}</ul>`;
+const crumbs = items => `<nav class="crumbs" aria-label="Ruta de navegación"><ol>${items.map((it, i) => i === items.length - 1 ? `<li><span aria-current="page">${esc(it[0])}</span></li>` : `<li><a href="${it[1]}" data-link>${esc(it[0])}</a></li>`).join('')}</ol></nav>`;
+const extLink = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(text)}<span class="sr-only"> (se abre en una pestaña nueva)</span></a>`;
+
+/* ---- Combobox de búsqueda ---- */
+let searchUid = 0;
+function mountSearch(slot, { value = '', dropdown = true, onInput, onSubmit, label = 'Buscar un trámite o servicio' }) {
+  const id = `q${++searchUid}`;
+  slot.innerHTML = `<form class="search" role="search" aria-label="Buscar servicios" novalidate>
+    <label class="search__label" for="${id}">${esc(label)}</label>
+    <div class="search__row">
+      <div class="search__field">
+        <input id="${id}" class="search__input" type="search" name="q" value="${esc(value)}" placeholder="Ej.: registro de proveedores" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-list" aria-describedby="${id}-hint" autocomplete="off" spellcheck="false" enterkeyhint="search">
+        <ul id="${id}-list" class="search__list" role="listbox" aria-label="Sugerencias de servicios" hidden></ul>
+      </div>
+      <button class="btn btn--primary search__btn" type="submit">Buscar</button>
+    </div>
+    <p class="search__hint" id="${id}-hint">Busque por nombre, palabra clave o procedimiento. Se toleran errores de ortografía.</p>
+    <p class="sr-only" id="${id}-st" role="status" aria-live="polite"></p>
+  </form>`;
+  const form = $('form', slot), input = $('input', slot), list = $(`#${id}-list`), st = $(`#${id}-st`);
+  let items = [], active = -1;
+  const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); active = -1; };
+  const setActive = i => {
+    active = i; $$('.search__opt', list).forEach((li, k) => li.setAttribute('aria-selected', k === i ? 'true' : 'false'));
+    if (i >= 0) { input.setAttribute('aria-activedescendant', `${id}-o${i}`); $(`#${id}-o${i}`).scrollIntoView({ block: 'nearest' }); } else input.removeAttribute('aria-activedescendant');
+  };
+  const choose = it => { close(); if (it.type === 'service') navigate(svcHref(it.s)); else if (it.type === 'dym') { input.value = it.q; onSubmit(it.q); } else if (it.type === 'all') onSubmit(input.value.trim()); };
+  const build = () => {
+    const q = input.value.trim(); items = [];
+    if (q.length < 2 || !tokens(q).length) { close(); st.textContent = ''; return; }
+    const res = search(q, state.services); const r = res.length ? res : search(q, state.services, true);
+    r.slice(0, CONFIG.MAX_SUGGESTIONS).forEach(x => items.push({ type: 'service', s: x.s }));
+    if (!res.length) { const dym = didYouMean(q); if (dym) items.unshift({ type: 'dym', q: dym }); }
+    if (!items.length) items.push({ type: 'none' }); else items.push({ type: 'all', n: r.length });
+    list.innerHTML = items.map((it, i) => {
+      const a = `id="${id}-o${i}" role="option" aria-selected="false"`;
+      if (it.type === 'service') return `<li ${a} class="search__opt">${esc(it.s.nombre)}<small>${esc(it.s.categoria)}</small></li>`;
+      if (it.type === 'dym') return `<li ${a} class="search__opt">¿Quiso decir «${esc(it.q)}»?</li>`;
+      if (it.type === 'all') return `<li ${a} class="search__opt search__opt--action">Ver todos los resultados para «${esc(q)}»</li>`;
+      return `<li ${a.replace('aria-selected="false"', 'aria-selected="false" aria-disabled="true"')} class="search__opt">Sin coincidencias. Revise la ortografía o use palabras más generales.</li>`;
+    }).join('');
+    list.hidden = false; input.setAttribute('aria-expanded', 'true'); active = -1;
+    const n = items.filter(i => i.type === 'service').length;
+    st.textContent = n ? `${plural(n, 'sugerencia disponible', 'sugerencias disponibles')}. Use las flechas arriba y abajo para recorrerlas.` : 'Sin sugerencias.';
+  };
+  const onType = debounce(() => { if (dropdown) build(); onInput && onInput(input.value); }, 90);
+  input.addEventListener('input', onType);
+  input.addEventListener('keydown', e => {
+    const open = !list.hidden;
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (!open) build(); if (items.length) setActive((active + 1) % items.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (open && items.length) setActive((active - 1 + items.length) % items.length); }
+    else if (e.key === 'Home' && open && active >= 0) { e.preventDefault(); setActive(0); }
+    else if (e.key === 'End' && open && active >= 0) { e.preventDefault(); setActive(items.length - 1); }
+    else if (e.key === 'Escape') { if (open) { e.preventDefault(); close(); } else if (input.value) { input.value = ''; onInput && onInput(''); } }
+    else if (e.key === 'Enter' && open && active >= 0 && items[active].type !== 'none') { e.preventDefault(); choose(items[active]); }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 120));
+  input.addEventListener('focus', () => { if (dropdown && input.value.trim().length >= 2) build(); });
+  list.addEventListener('mousedown', e => e.preventDefault());
+  list.addEventListener('click', e => { const li = e.target.closest('[role="option"]'); if (!li) return; const it = items[+li.id.split('-o')[1]]; if (it && it.type !== 'none') choose(it); });
+  form.addEventListener('submit', e => { e.preventDefault(); close(); onSubmit(input.value.trim()); });
+  return { input, get value() { return input.value.trim(); }, close };
+}
+
+/* =====================================================================
+   VISTAS
+   ===================================================================== */
+function viewLoading() {
+  setMeta('Cargando servicios', '', {});
+  view.innerHTML = `<div class="state wrap" role="status"><div class="spinner" aria-hidden="true"></div><p>Cargando servicios…</p></div>`;
+}
+function viewError() {
+  setMeta('No se pudo cargar el listado', '');
+  view.innerHTML = `<div class="state wrap" role="alert"><h1>No pudimos cargar los servicios</h1>
+    <p>Verifique su conexión a internet e intente de nuevo. Si el problema continúa, escriba a <a href="mailto:${esc(CONFIG.CONTACT_TO)}">${esc(CONFIG.CONTACT_TO)}</a>.</p>
+    <p><small>Detalle técnico: ${esc(state.error && state.error.message || 'desconocido')}</small></p>
+    <button class="btn btn--dark" type="button" id="retry">Intentar de nuevo</button></div>`;
+  $('#retry').addEventListener('click', () => { state.error = null; boot(); });
+}
+function viewNotFound() {
+  setMeta('Servicio no encontrado', '');
+  view.innerHTML = `<div class="state wrap"><h1>No encontramos ese servicio</h1><p>Es posible que el enlace haya cambiado o que el servicio ya no esté publicado.</p>
+    <p><a class="btn btn--dark" href="${catalogHref()}" data-link>Ver todos los servicios</a></p></div>`;
+}
+
+function frequentTerms() {
+  if (CONFIG.FREQUENT_SEARCHES.length) return CONFIG.FREQUENT_SEARCHES;
+  const c = new Map();
+  for (const s of state.services) for (const k of s.palabras) { const t = k.trim().toLowerCase(); if (t.length > 3) c.set(t, (c.get(t) || 0) + 1); }
+  return [...c].sort((a, b) => b[1] - a[1] || collator.compare(a[0], b[0])).slice(0, 6).map(x => x[0]);
+}
+
+function viewHome() {
+  setMeta(`${CONFIG.SITE_NAME} | ${CONFIG.ORG_NAME}`, '', { noSuffix: true });
+  setNav('home');
+  const featured = (state.services.some(s => s.destacado) ? state.services.filter(s => s.destacado) : state.services).slice(0, CONFIG.FEATURED_COUNT);
+  const freq = frequentTerms();
+  view.innerHTML = `
+  <section class="hero on-dark" aria-labelledby="hero-title">
+    <div class="hero__inner">
+      <h1 id="hero-title">¿Qué trámite necesita realizar?</h1>
+      <p class="hero__lead">Consulte los servicios de la ${esc(CONFIG.ORG_NAME)}: cada ficha explica el procedimiento, los requisitos y los costos, e incluye un video explicativo.</p>
+      <div id="search-slot"></div>
+      ${freq.length ? `<div class="hero__freq"><span id="freq-l">Búsquedas frecuentes:</span> <ul aria-labelledby="freq-l">${freq.map(t => `<li><a href="${catalogHref({ q: t })}" data-link>${esc(t)}</a></li>`).join('')}</ul></div>` : ''}
+    </div>
+    <div class="greca" aria-hidden="true"></div>
+  </section>
+  <section class="section wrap" aria-labelledby="cats-t">
+    <div class="section__head"><h2 id="cats-t">Servicios por categoría</h2><p>${plural(state.services.length, 'servicio publicado', 'servicios publicados')}</p></div>
+    ${catTiles()}
+  </section>
+  <section class="section wrap" style="padding-top:0" aria-labelledby="feat-t">
+    <div class="section__head"><h2 id="feat-t">${state.services.some(s => s.destacado) ? 'Servicios destacados' : 'Servicios'}</h2></div>
+    ${svcList(featured)}
+    ${state.services.length > featured.length ? `<p style="margin-top:1.5rem"><a class="btn btn--ghost" href="${catalogHref()}" data-link>Ver los ${state.services.length} servicios</a></p>` : ''}
+  </section>
+  <section class="band" aria-labelledby="help-t"><div class="wrap band__inner">
+    <div><h2 id="help-t">¿No encuentra el trámite que busca?</h2><p>Escriba al equipo de Transparencia y le orientaremos.</p></div>
+    <a class="btn btn--dark" href="mailto:${esc(CONFIG.CONTACT_TO)}">Escribir a Transparencia</a>
+  </div></section>`;
+  mountSearch($('#search-slot'), { onSubmit: q => navigate(q ? catalogHref({ q }) : catalogHref()) });
+}
+
+function viewCatalog(p) {
+  const q0 = p.get('q') || '', cat0 = p.get('categoria') || '', est0 = p.get('estado') || '', ord0 = p.get('orden') || '';
+  setMeta(cat0 ? `Servicios de ${cat0}` : q0 ? `Resultados para «${q0}»` : 'Todos los servicios', `Catálogo de trámites y servicios de la ${CONFIG.ORG_NAME}.`);
+  setNav('catalog');
+  const opt = (arr, cur) => arr.map(v => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('');
+  view.innerHTML = `
+  <section class="page-head on-dark" aria-labelledby="cat-title"><div class="wrap page-head__inner">
+    ${crumbs([['Inicio', './'], ['Servicios']])}
+    <h1 id="cat-title">Todos los servicios</h1>
+    <div id="search-slot"></div>
+    <form class="filters" id="filters" aria-label="Filtrar servicios">
+      <div><label for="f-cat">Categoría</label><select class="select" id="f-cat"><option value="">Todas las categorías</option>${opt(state.categories, cat0)}</select></div>
+      <div><label for="f-est">Estado del servicio</label><select class="select" id="f-est"><option value="">Todos los estados</option>${opt(state.estados, est0)}</select></div>
+      <div><label for="f-ord">Ordenar por</label><select class="select" id="f-ord"><option value="">Relevancia</option><option value="nombre"${ord0 === 'nombre' ? ' selected' : ''}>Nombre (A–Z)</option><option value="categoria"${ord0 === 'categoria' ? ' selected' : ''}>Categoría</option></select></div>
+      <div><button class="btn btn--primary" type="button" id="f-reset">Limpiar filtros</button></div>
+    </form>
+  </div><div class="greca" aria-hidden="true"></div></section>
+  <section class="section wrap" aria-labelledby="res-h">
+    <h2 class="sr-only" id="res-h">Lista de servicios</h2>
+    <p class="results__count" id="r-count" role="status" aria-live="polite"></p>
+    <div id="r-list"></div><div id="r-extra"></div>
+  </section>`;
+  const s = mountSearch($('#search-slot'), { value: q0, dropdown: false, onInput: () => apply(), onSubmit: () => apply() });
+  const cat = $('#f-cat'), est = $('#f-est'), ord = $('#f-ord');
+  function apply() {
+    const q = s.value, c = cat.value, e = est.value, o = ord.value;
+    const pool = state.services.filter(x => (!c || x.categoria === c) && (!e || x.estado === e));
+    let list, relaxed = false, dym = '';
+    if (q && tokens(q).length) {
+      let res = search(q, pool);
+      if (!res.length && tokens(q).length > 1) { res = search(q, pool, true); relaxed = res.length > 0; }
+      if (!res.length) dym = didYouMean(q);
+      list = res.map(r => r.s);
+    } else list = [...pool].sort((a, b) => (a.orden ?? 1e9) - (b.orden ?? 1e9) || collator.compare(a.nombre, b.nombre));
+    if (o === 'nombre') list.sort((a, b) => collator.compare(a.nombre, b.nombre));
+    if (o === 'categoria') list.sort((a, b) => collator.compare(a.categoria, b.categoria) || collator.compare(a.nombre, b.nombre));
+    $('#r-count').textContent = q ? `${plural(list.length, 'servicio encontrado', 'servicios encontrados')} para «${q}»` : plural(list.length, 'servicio', 'servicios');
+    const extra = $('#r-extra'); extra.innerHTML = '';
+    if (list.length) {
+      $('#r-list').innerHTML = (relaxed ? `<p class="notice">No hay coincidencias con todas las palabras. Se muestran coincidencias parciales.</p>` : '') + svcList(list);
+      if (q && list.length < 3) { const rel = relatedTo(list[0], 3, new Set(list)); if (rel.length) extra.innerHTML = `<div class="related"><h2>Servicios relacionados</h2>${svcList(rel)}</div>`; }
+    } else {
+      $('#r-list').innerHTML = `<div class="empty"><h2>No encontramos servicios${q ? ` para «${esc(q)}»` : ' con esos filtros'}</h2>
+        ${dym ? `<p>¿Quiso decir <a href="${catalogHref({ q: dym, categoria: c, estado: e })}" data-link><strong>${esc(dym)}</strong></a>?</p>` : ''}
+        <ul><li>Revise la ortografía o pruebe con una sola palabra.</li><li>Use términos más generales, por ejemplo «pago» o «registro».</li>${(c || e) ? '<li>Quite los filtros de categoría o estado.</li>' : ''}</ul>
+        <p><strong>Explore por categoría:</strong></p><ul class="chips">${state.categories.map(x => `<li><a href="${catalogHref({ categoria: x })}" data-link>${esc(x)}</a></li>`).join('')}</ul></div>`;
+    }
+    const ps = new URLSearchParams(); ps.set('catalogo', '1'); if (q) ps.set('q', q); if (c) ps.set('categoria', c); if (e) ps.set('estado', e); if (o) ps.set('orden', o);
+    navigate('?' + ps.toString(), { replace: true, silent: true });
+  }
+  [cat, est, ord].forEach(el => el.addEventListener('change', apply));
+  $('#f-reset').addEventListener('click', () => { cat.value = est.value = ord.value = ''; s.input.value = ''; apply(); s.input.focus(); });
+  apply();
+}
+
+/* ---- Video ---- */
+function toEmbed(raw) {
+  const url = safeUrl(raw); if (!url) return null;
+  const u = new URL(url), h = u.hostname.replace(/^www\./, ''); let id = '';
+  if (h === 'youtu.be') id = u.pathname.slice(1).split('/')[0];
+  else if (/(^|\.)youtube(-nocookie)?\.com$/.test(h)) {
+    if (u.pathname === '/watch') id = u.searchParams.get('v') || '';
+    else { const m = u.pathname.match(/^\/(?:embed|shorts|live|v)\/([^/?]+)/); if (m) id = m[1]; }
+    if (!id && u.searchParams.get('list') && /^[\w-]+$/.test(u.searchParams.get('list'))) return { type: 'iframe', src: `https://www.youtube-nocookie.com/embed/videoseries?list=${u.searchParams.get('list')}`, url };
+  }
+  if (id && /^[\w-]{6,20}$/.test(id)) return { type: 'iframe', src: `https://www.youtube-nocookie.com/embed/${id}?rel=0`, url };
+  if (h === 'vimeo.com' || h === 'player.vimeo.com') { const m = u.pathname.match(/(\d{5,})/); if (m) return { type: 'iframe', src: `https://player.vimeo.com/video/${m[1]}`, url }; }
+  if (h === 'drive.google.com') { const m = u.pathname.match(/\/file\/d\/([\w-]+)/) ; const q = u.searchParams.get('id'); const fid = m ? m[1] : (q && /^[\w-]+$/.test(q) ? q : ''); if (fid) return { type: 'iframe', src: `https://drive.google.com/file/d/${fid}/preview`, url }; }
+  if (/\.(mp4|webm|ogg)(\?|$)/i.test(u.pathname + u.search)) return { type: 'file', src: url, url };
+  return { type: 'link', url };
+}
+function videoHtml(s) {
+  const v = toEmbed(s.video); if (!v) return '';
+  const fallback = `<p class="note">Si el video no se reproduce, ${extLink(v.url, 'ábralo en una pestaña nueva')}.</p>`;
+  if (v.type === 'iframe') return `<div class="video"><iframe src="${esc(v.src)}" title="Video explicativo: ${esc(s.nombre)}" loading="lazy" allow="encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>${fallback}`;
+  if (v.type === 'file') return `<div class="video"><video controls preload="metadata" src="${esc(v.src)}">Su navegador no puede reproducir este video. ${extLink(v.url, 'Descárguelo aquí')}.</video></div>${fallback}`;
+  return `<p>${extLink(v.url, 'Ver el video explicativo')}</p>`;
+}
+
+/* ---- Detalle ---- */
+const list_ = arr => `<ul class="checks">${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+function costItem(t) { const i = t.indexOf(':'); return (i > 0 && i < t.length - 1) ? `<li><span>${esc(t.slice(0, i).trim())}</span><span class="cost__v">${esc(t.slice(i + 1).trim())}</span></li>` : `<li><span>${esc(t)}</span></li>`; }
+
+function viewService(slug) {
+  const s = state.bySlug.get(slug); if (!s) return viewNotFound();
+  setNav('catalog');
+  setMeta(s.nombre, s.descripcion, { ld: { '@context': 'https://schema.org', '@type': 'GovernmentService', name: s.nombre, description: s.descripcion || s.detalle, serviceType: s.categoria,
+    provider: { '@type': 'GovernmentOrganization', name: CONFIG.ORG_NAME, url: CONFIG.ORG_URL }, areaServed: { '@type': 'Country', name: 'Honduras' }, inLanguage: 'es-HN' } });
+  const secs = [];
+  const costGroups = Object.entries(s.costos).filter(([, v]) => v.length);
+  const gen = `<dl class="dl"><dt>Institución responsable</dt><dd>${esc(s.institucion)}</dd><dt>Categoría</dt><dd>${esc(s.categoria)}</dd><dt>Estado</dt><dd>${badge(s.estado)}</dd></dl>
+    ${s.detalle ? `<div class="prose">${parseParas(s.detalle).map(x => `<p>${esc(x)}</p>`).join('')}</div>` : ''}
+    ${s.objetivo ? `<h3>Objetivo</h3><div class="prose">${parseParas(s.objetivo).map(x => `<p>${esc(x)}</p>`).join('')}</div>` : ''}
+    ${safeUrl(s.enlace) ? `<p style="margin-top:1rem"><a class="btn btn--dark" href="${esc(safeUrl(s.enlace))}" target="_blank" rel="noopener noreferrer">Iniciar el trámite en línea<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>` : ''}`;
+  secs.push(['general', 'Información general', gen]);
+  const vid = videoHtml(s); if (vid) secs.push(['video', 'Video explicativo', vid]);
+  if (s.procedimiento.length) secs.push(['procedimiento', 'Procedimiento', `<ol class="steps">${s.procedimiento.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`]);
+  if (s.requisitos.length) secs.push(['requisitos', 'Requisitos', list_(s.requisitos)]);
+  if (s.documentos.length) secs.push(['documentos', 'Documentación requerida', list_(s.documentos)]);
+  secs.push(['costos', 'Tasas y costos', costGroups.length ? `<div class="costs">${costGroups.map(([k, v]) => `<div class="cost"><h3>${esc(k)}</h3><ul>${v.map(costItem).join('')}</ul></div>`).join('')}</div>` : '<p>No se registran tasas, impuestos, derechos ni costos para este servicio.</p>']);
+  if (s.tiempo) secs.push(['tiempo', 'Tiempo estimado', `<p class="time">${esc(s.tiempo.replace(/\s*\n\s*/g, ' '))}</p>`]);
+  if (s.observaciones.length) secs.push(['observaciones', 'Observaciones', `<div class="callout" role="note"><strong>Tenga en cuenta</strong>${s.observaciones.length === 1 ? `<p style="margin:0">${esc(s.observaciones[0])}</p>` : `<ul>${s.observaciones.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`}</div>`]);
+  const rel = relatedTo(s, 3);
+  const cost1 = costGroups.length ? costGroups.flatMap(([, v]) => v).slice(0, 2).join(' · ') : '';
+  const toc = [...secs.map(([id, t]) => [id, t]), ['contacto', '¿Tiene dudas?']];
+
+  view.innerHTML = `<article aria-labelledby="svc-title">
+  <section class="page-head on-dark"><div class="wrap page-head__inner">
+    ${crumbs([['Inicio', './'], ['Servicios', catalogHref()], [s.categoria, catalogHref({ categoria: s.categoria })], [s.nombre]])}
+    <h1 id="svc-title">${esc(s.nombre)}</h1>
+    ${s.descripcion ? `<p class="lead">${esc(s.descripcion)}</p>` : ''}
+    <ul class="facts">
+      <li>${badge(s.estado)}</li>
+      <li><span>Responsable: <strong>${esc(s.institucion)}</strong></span></li>
+      ${s.tiempo ? `<li><span>Tiempo estimado: <strong>${esc(s.tiempo.split(/\n/)[0])}</strong></span></li>` : ''}
+    </ul>
+  </div><div class="greca" aria-hidden="true"></div></section>
+  <div class="wrap detail">
+    <div>
+      <div class="panel">${secs.map(([id, t, h]) => `<section class="dsec" id="sec-${id}" aria-labelledby="h-${id}"><h2 id="h-${id}" tabindex="-1">${esc(t)}</h2>${h}</section>`).join('')}</div>
+      <section class="panel contact dsec" id="sec-contacto" aria-labelledby="h-contacto" style="margin-top:1.5rem">
+        <h2 id="h-contacto" tabindex="-1">¿Tiene dudas sobre este servicio?</h2>
+        <p class="lead">Escríbanos y le responderemos al correo que indique. Su consulta llegará al equipo de Transparencia de la SEFIN.</p>
+        <form class="form" id="contact-form" novalidate>
+          <div id="cf-summary" class="summary summary--err" role="alert" tabindex="-1" hidden></div>
+          <div class="form__row">
+            <div class="field"><label for="cf-name">Nombre completo <span class="req" aria-hidden="true">*</span><span class="sr-only">(obligatorio)</span></label>
+              <input class="input" id="cf-name" name="name" type="text" autocomplete="name" required aria-required="true" maxlength="100" aria-describedby="cf-name-e"><p class="field__err" id="cf-name-e" hidden></p></div>
+            <div class="field"><label for="cf-email">Correo electrónico <span class="req" aria-hidden="true">*</span><span class="sr-only">(obligatorio)</span></label>
+              <input class="input" id="cf-email" name="email" type="email" autocomplete="email" inputmode="email" required aria-required="true" maxlength="120" aria-describedby="cf-email-e"><p class="field__err" id="cf-email-e" hidden></p></div>
+          </div>
+          <div class="field"><label for="cf-subject">Asunto <span class="req" aria-hidden="true">*</span><span class="sr-only">(obligatorio)</span></label>
+            <input class="input" id="cf-subject" name="subject" type="text" required aria-required="true" maxlength="150" value="${esc(('Consulta sobre: ' + s.nombre).slice(0, 150))}" aria-describedby="cf-subject-e"><p class="field__err" id="cf-subject-e" hidden></p></div>
+          <div class="field"><label for="cf-message">Mensaje <span class="req" aria-hidden="true">*</span><span class="sr-only">(obligatorio)</span></label>
+            <textarea class="input" id="cf-message" name="message" required aria-required="true" maxlength="2000" aria-describedby="cf-message-h cf-message-e"></textarea>
+            <div class="field__help"><span id="cf-message-h">Mínimo 10 caracteres. No incluya contraseñas ni datos bancarios.</span><span id="cf-count" aria-hidden="true">0 / 2000</span></div><p class="field__err" id="cf-message-e" hidden></p></div>
+          <div class="hp" aria-hidden="true"><label>No llenar este campo<input type="text" name="_honey" tabindex="-1" autocomplete="off"></label></div>
+          <div><button class="btn btn--dark" type="submit" id="cf-send">Enviar consulta</button></div>
+          <div id="cf-status" role="status" aria-live="polite" tabindex="-1"></div>
+        </form>
+      </section>
+      ${rel.length ? `<section class="related" aria-labelledby="rel-t"><h2 id="rel-t">Servicios relacionados</h2>${svcList(rel)}</section>` : ''}
+    </div>
+    <aside class="aside" aria-label="Resumen y opciones">
+      <div class="panel toc"><nav aria-labelledby="toc-t"><h2 id="toc-t">En esta página</h2><ol>${toc.map(([id, t]) => `<li><a href="#sec-${id}" data-scroll>${esc(t)}</a></li>`).join('')}</ol></nav></div>
+      ${cost1 ? `<div class="panel"><h2>Costo</h2><p style="margin:0">${esc(cost1)}</p></div>` : ''}
+      <button class="btn btn--ghost no-print" type="button" id="print-btn">Imprimir esta ficha</button>
+    </aside>
+  </div></article>`;
+  $('#print-btn').addEventListener('click', () => window.print());
+  initContact(s);
+}
+
+/* ---- Formulario de contacto ---- */
+function initContact(s) {
+  const form = $('#contact-form'), summary = $('#cf-summary'), status = $('#cf-status');
+  const F = { name: $('#cf-name'), email: $('#cf-email'), subject: $('#cf-subject'), message: $('#cf-message') };
+  const label = { name: 'Nombre completo', email: 'Correo electrónico', subject: 'Asunto', message: 'Mensaje' };
+  let attempted = false, lastSent = 0, busy = false;
+  const rules = {
+    name: v => !v ? 'Escriba su nombre completo.' : v.length < 3 ? 'El nombre debe tener al menos 3 caracteres.' : '',
+    email: v => !v ? 'Escriba su correo electrónico.' : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? 'Escriba un correo válido, por ejemplo nombre@dominio.com.' : '',
+    subject: v => !v ? 'Escriba el asunto de su consulta.' : v.length < 3 ? 'El asunto debe tener al menos 3 caracteres.' : '',
+    message: v => !v ? 'Escriba su consulta.' : v.length < 10 ? 'El mensaje debe tener al menos 10 caracteres.' : v.length > 2000 ? 'El mensaje no puede superar los 2000 caracteres.' : ''
+  };
+  const setErr = (k, msg) => { const e = $(`#cf-${k}-e`); e.textContent = msg; e.hidden = !msg; F[k].setAttribute('aria-invalid', msg ? 'true' : 'false'); };
+  const check = () => Object.keys(F).map(k => [k, rules[k](F[k].value.trim())]).filter(x => x[1]);
+  Object.entries(F).forEach(([k, el]) => el.addEventListener('input', () => { if (k === 'message') $('#cf-count').textContent = `${el.value.length} / 2000`; if (attempted) setErr(k, rules[k](el.value.trim())); }));
+  summary.addEventListener('click', e => { const a = e.target.closest('a[data-focus]'); if (a) { e.preventDefault(); $('#' + a.dataset.focus).focus(); } });
+  const show = (cls, html) => { status.className = 'summary summary--' + cls; status.innerHTML = html; };
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault(); if (busy) return; attempted = true; status.className = ''; status.innerHTML = '';
+    const errs = check(); Object.keys(F).forEach(k => setErr(k, (errs.find(x => x[0] === k) || [])[1] || ''));
+    if (errs.length) {
+      summary.hidden = false;
+      summary.innerHTML = `<strong>Revise ${plural(errs.length, 'campo', 'campos')} antes de enviar</strong><ul>${errs.map(([k, m]) => `<li><a href="#cf-${k}" data-focus="cf-${k}">${esc(label[k])}</a>: ${esc(m)}</li>`).join('')}</ul>`;
+      summary.focus(); return;
+    }
+    summary.hidden = true; summary.innerHTML = '';
+    if ($('input[name="_honey"]', form).value) { show('ok', '<strong>Consulta enviada</strong>'); return; }
+    if (Date.now() - lastSent < 30000) { show('info', '<p>Ya enviamos su consulta hace unos segundos. Espere un momento antes de enviar otra.</p>'); return; }
+    busy = true; const btn = $('#cf-send'); btn.disabled = true; btn.textContent = 'Enviando…'; show('info', '<p>Enviando su consulta…</p>');
+    const data = { name: F.name.value.trim(), email: F.email.value.trim(), subject: F.subject.value.trim(), message: F.message.value.trim() };
+    const payload = { name: data.name, email: data.email, message: data.message, Servicio: s.nombre, Categoria: s.categoria, Enlace: location.href,
+      _subject: `[${CONFIG.SITE_NAME}] ${data.subject}`, _captcha: 'false', _template: 'table', _honey: '' };
+    try {
+      const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 20000);
+      const r = await fetch(CONFIG.FORM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload), signal: ctrl.signal });
+      clearTimeout(to); let j = null; try { j = await r.json(); } catch { /* sin cuerpo JSON */ }
+      if (!(r.ok && j && (j.success === true || j.success === 'true'))) throw new Error((j && j.message) || 'HTTP ' + r.status);
+      lastSent = Date.now(); form.reset(); $('#cf-count').textContent = '0 / 2000'; F.subject.value = `Consulta sobre: ${s.nombre}`.slice(0, 150);
+      Object.keys(F).forEach(k => setErr(k, '')); attempted = false;
+      show('ok', `<strong>Consulta enviada</strong><p>Recibimos su mensaje. Le responderemos al correo <strong>${esc(data.email)}</strong>.</p>`); status.focus();
+    } catch (err) {
+      const body = encodeURIComponent(`Nombre: ${data.name}\nCorreo: ${data.email}\nServicio: ${s.nombre}\n\n${data.message}`.slice(0, 1500));
+      show('err', `<strong>No se pudo enviar su consulta</strong><p>Revise su conexión e inténtelo de nuevo. También puede escribirnos directamente: <a href="mailto:${esc(CONFIG.CONTACT_TO)}?subject=${encodeURIComponent(data.subject)}&body=${body}">abrir mi programa de correo</a>.</p>`); status.focus();
+    } finally { busy = false; btn.disabled = false; btn.textContent = 'Enviar consulta'; }
+  });
+}
+
+/* =====================================================================
+   ARRANQUE
+   ===================================================================== */
+document.addEventListener('click', e => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const a = e.target.closest('a[data-link]');
+  if (a) { e.preventDefault(); navigate(a.getAttribute('href')); return; }
+  const sc = e.target.closest('a[data-scroll]');
+  if (sc) {
+    const t = document.getElementById(sc.getAttribute('href').slice(1)); if (!t) return;
+    e.preventDefault(); const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    t.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    const h = t.matches('main') ? t : $('h2', t); (h || t).tabIndex = -1; (h || t).focus({ preventScroll: true });
+  }
+});
+window.addEventListener('popstate', () => route());
+window.addEventListener('hashchange', () => { if (!location.hash.slice(1) || location.hash.startsWith('#?')) route(); });
+
+function applyBranding() {
+  $('#brand-name').textContent = CONFIG.SITE_NAME; $('#brand-org').textContent = CONFIG.ORG_NAME; $('#foot-org').textContent = CONFIG.ORG_NAME;
+  $('#year').textContent = new Date().getFullYear();
+  $('#foot-site').href = CONFIG.ORG_URL;
+  ['#nav-contact', '#foot-mail'].forEach(id => { $(id).href = `mailto:${CONFIG.CONTACT_TO}`; });
+  $('#foot-mail').textContent = CONFIG.CONTACT_TO;
+  const logo = safeUrl(CONFIG.LOGO_URL, true);
+  if (logo) { const m = $('.brand__mark'); m.className = ''; m.innerHTML = `<img class="brand__logo" src="${esc(logo)}" alt="" width="48" height="48">`; }
+}
+
+async function boot() {
+  route({ initial: true });
+  try {
+    const services = await loadServices();
+    state.services = services;
+    state.bySlug = new Map(services.map(s => [s.slug, s]));
+    state.categories = [...new Set(services.map(s => s.categoria))].sort(collator.compare);
+    state.estados = [...new Set(services.map(s => s.estado))].sort(collator.compare);
+    buildIndex(services);
+    state.ready = true; state.error = null;
+    $('#demo-banner').hidden = !state.demo;
+  } catch (err) { state.error = err; console.error('[Portal SEFIN]', err); }
+  route({ initial: true });
+}
+
+applyBranding();
+boot();
+})();
+</script>
+</body>
+</html>
